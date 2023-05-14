@@ -12,10 +12,9 @@ from .serializers import LoginSerializer, UserSerializer
 
 # Create your views here.
 class LoginView(APIView):
-    serializer_class = LoginSerializer
 
     def post(self, request):
-        serializer = self.serializer_class(data = request.data)
+        serializer = LoginSerializer(data = request.data)
         serializer.is_valid(raise_exception = True)
 
         user = authenticate(
@@ -35,3 +34,24 @@ class LoginView(APIView):
                     "message": "The credentiales provided are not valid. Please review your information and try again."
                 }, 
                 status = status.HTTP_401_UNAUTHORIZED)
+
+
+class SignUpView(APIView):
+    serializer_class = UserSerializer
+    
+    def post(self, request):
+        print(request.data)
+        serializer = self.serializer_class(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        try:
+            serializer.save()
+            return Response(serializer.data, status = status.HTTP_200_OK)
+        except:
+            return Response(
+            {   
+                "error": "400 Bad Request",
+                "message": f"Email '{serializer.validated_data['email']}' is already registered"
+            }, 
+            status = status.HTTP_400_BAD_REQUEST)
+
+       
