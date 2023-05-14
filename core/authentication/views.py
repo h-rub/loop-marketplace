@@ -1,3 +1,5 @@
+from .serializers import LoginSerializer, UserSerializer
+
 from datetime import datetime
 
 from django.shortcuts import render
@@ -8,7 +10,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from .serializers import LoginSerializer, UserSerializer
+from rest_framework.authtoken.models import Token
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.permissions import IsAuthenticated
 
 # Create your views here.
 class LoginView(APIView):
@@ -25,8 +29,11 @@ class LoginView(APIView):
         if user is not None:
             user.last_login = datetime.now()
             user.save()
+            token, _ = Token.objects.get_or_create(user=user)
             user_serializer = UserSerializer(user)
-            return Response(user_serializer.data, status = status.HTTP_200_OK)
+            user_serializer = dict(user_serializer.data)
+            user_serializer['token'] = str(token.key)
+            return Response(user_serializer, status = status.HTTP_200_OK)
         else:
             return Response(
                 {
@@ -40,12 +47,14 @@ class SignUpView(APIView):
     serializer_class = UserSerializer
     
     def post(self, request):
-        print(request.data)
         serializer = self.serializer_class(data = request.data)
         serializer.is_valid(raise_exception = True)
         try:
-            serializer.save()
-            return Response(serializer.data, status = status.HTTP_200_OK)
+            user = serializer.save()
+            token, _ = Token.objects.get_or_create(user=user)
+            user_serializer = dict(serializer.data)
+            user_serializer['token'] = str(token.key)
+            return Response(user_serializer, status = status.HTTP_200_OK)
         except:
             return Response(
             {   
@@ -55,3 +64,25 @@ class SignUpView(APIView):
             status = status.HTTP_400_BAD_REQUEST)
 
        
+class LogoutView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        try:
+            token = Token.objects.get(user=user)
+            token.delete()
+            return Response(
+                {
+                    "status": "200 OK",
+                    "message": "You have successfully logged out"
+                }
+            )
+        except Token.DoesNotExist:
+            return Response(
+                {
+                    "error": "401 Unauthorized",
+                    "message": "Unassociated token for the user"
+                }, status = status.HTTP_401_UNAUTHORIZED
+            )
